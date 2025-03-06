@@ -1,10 +1,20 @@
 import whatsappService from "./whatsappService.js";
 
 class MessageHandler {
+  constructor() {
+    this.appointmenState = {};
+  }
+
   async handleIncomingMessage(message, senderInfo) {
     if (message?.type === "text") {
       const incomingMessage = message.text.body.toLowerCase().trim();
       const userId = message.from;
+
+      // 🚀 Agregar verificación del flujo de agendamiento
+      if (this.appointmenState[userId]) {
+        await this.handleAppointmentFlow(userId, incomingMessage);
+        return; // Detiene la ejecución para que no entre en otros flujos
+      }
 
       if (this.isGreeting(incomingMessage)) {
         await this.sendWelcomeMessage(userId, message.id, senderInfo);
@@ -77,7 +87,8 @@ class MessageHandler {
     let response;
     switch (option) {
       case "Agendar":
-        response = "📅 Para agendar una cita, elige una opción";
+        this.appointmenState[to] = { step: "name" };
+        response = "📅 Para agendar una cita, Necesitamos saber tu nombre";
         break;
       case "Consultar":
         response = "📄¿Sobre qué te gustaría consultar?";
@@ -89,6 +100,53 @@ class MessageHandler {
         response =
           "Lo siento, no entendí tu selección. Por favor, elige una de las opciones del menú.";
     }
+    await whatsappService.sendMessage(to, response);
+  }
+  async sendMedia(to) {
+    // const mediaUrl = "https://s3.amazonaws.com/gndx.dev/medpet-audio.aac";
+    // const caption = "Bienvenida";
+    // const type = "audio";
+
+    // const mediaUrl = "https://s3.amazonaws.com/gndx.dev/medpet-imagen.png";
+    // const caption = "¡Esto es una Imagen!";
+    // const type = "image";
+
+    // const mediaUrl = "https://s3.amazonaws.com/gndx.dev/medpet-video.mp4";
+    // const caption = "¡Esto es una video!";
+    // const type = "video";
+
+    const mediaUrl = "https://s3.amazonaws.com/gndx.dev/medpet-file.pdf";
+    const caption = "¡Esto es un PDF!";
+    const type = "document";
+    await whatsappService.sendMediaMessage(to, type, mediaUrl, caption);
+  }
+
+  async handleAppointmentFlow(to, message) {
+    const state = this.appointmenState[to];
+    let response;
+
+    switch (state.step) {
+      case "name":
+        state.name = message;
+        state.step = "dniPerson";
+        response = "Gracias, ahora, ¿Cuál es tu número de dni?";
+        break;
+      case "dniPerson":
+        state.personCorreo = message;
+        state.step = "personCorreo";
+        response = "¿Cuál es tú correo electrónico?";
+        break;
+      case "personCorreo":
+        state.personEdad = message;
+        state.step = "reason";
+        response = "cuál es motivo de la consulta?";
+        break;
+      case "reason":
+        state.reason = message;
+        response = "Gracias por agendar tu cita";
+        break;
+    }
+
     await whatsappService.sendMessage(to, response);
   }
 
